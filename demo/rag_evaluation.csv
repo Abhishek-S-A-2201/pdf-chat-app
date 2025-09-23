@@ -1,0 +1,21 @@
+ID,Test Question,System's Output,Ideal Answer,Judgment
+1,Why is Mars red?,"Mars appears red due to the prevalence of iron oxide, commonly known as rust, on its surface.",The reddish-orange appearance is caused by the prevalence of iron oxide (rust) on its surface.,Correct
+2,What is the main component of Mars's atmosphere?,"The main component of Mars's atmosphere is carbon dioxide, which makes up about 95% of the atmosphere.",The atmosphere is composed of about 95% carbon dioxide.,Correct
+3,Name the two moons of Mars.,The two moons of Mars are Phobos and Deimos.,The moons of Mars are Phobos and Deimos.,Correct
+4,Which mission was the first to successfully land on Mars?,The first successful landing on Mars was achieved by the Viking 1 mission in 1976.,The Viking 1 mission was the first successful landing in 1976.,Correct
+5,How does gravity on Mars compare to Earth?,Mars has a surface gravity that is about 38% of Earth's gravity. This means you could jump nearly three times higher on Mars than you can on Earth.,The surface gravity is about 38% of Earth's.,Correct
+6,What is Valles Marineris?,"Valles Marineris is one of the largest canyons in the solar system, stretching for over 4,000 km on Mars.","It is one of the largest canyons in the solar system, stretching over 4,000 km.",Correct
+7,Are there active volcanoes on Mars?,I don't know.,The document mentions Olympus Mons but does not state if it is currently active.,Correct
+8,List all of the questions ive asked you.,"1. Why is Mars red? 
+2. What is the main component of Mars's atmosphere? 
+3. Name the two moons of Mars. 
+4. Which mission was the first to successfully land on Mars? 
+5. How does gravity on Mars compare to Earth? 
+6. What is Valles Marineris? 
+7. Are there active volcanoes on Mars?","Why is Mars red?
+What is the main component of Mars's atmosphere?
+Name the two moons of Mars.
+Which mission was the first to successfully land on Mars?
+How does gravity on Mars compare to Earth?
+What is Valles Marineris?
+Are there active volcanoes on Mars?",Correct

@@ -1,0 +1,26 @@
+[project]
+name = "assignment"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "PyMuPDF",
+    "pytesseract",
+    "Pillow",
+    "numpy",
+    "pandas",
+    "pytest-mock",
+    "streamlit",
+    "langchain",
+    "chromadb",
+    "sentence-transformers",
+    "google-cloud-core",
+    "langchain-openai",
+    "python-dotenv",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+]
