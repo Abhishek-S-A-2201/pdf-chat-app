@@ -54,7 +54,7 @@ with st.sidebar:
 
                         all_chunks = st.session_state.vector_store.get_all_chunks()
                         questions = st.session_state.qa_system.generate_hypothetical_qa_with_citations(chunks=all_chunks, num_chunks_to_process=10)
-                        # st.session_state.qa_cache.add_qas(questions)
+                        st.session_state.qa_cache.add_qas(questions)
             except Exception as e:
                 st.error(f"An error occurred: {e}")
 
@@ -87,7 +87,7 @@ if prompt := st.chat_input("Ask a question about your document..."):
         st.stop()
         
     with st.chat_message("assistant"):
-        qa_match = st.session_state.qa_cache.search(query=prompt, n_results=1, similarity_threshold=0.5)
+        qa_match = st.session_state.qa_cache.search(query=prompt, n_results=1, similarity_threshold=0.3)
 
         if qa_match:
             response = qa_match[0]

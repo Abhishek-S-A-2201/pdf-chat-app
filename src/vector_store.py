@@ -2,6 +2,7 @@ import chromadb
 import logging
 from pathlib import Path
 from typing import List, Dict, Any
+import uuid
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
@@ -129,18 +130,17 @@ class VectorStore:
             for qa in qa_cache.qas:
                 chunks.append(qa.question)
                 metadatas.append({"source_chunks": json.dumps(qa.source_chunks), "citations": json.dumps(qa.citations), "answer": qa.answer})
-                ids.append(f"qa_{qa.question}")
+                ids.append(f"qa_{uuid.uuid4()}")
 
             self.collection.add(
                 documents=chunks,
                 metadatas=metadatas,
                 ids=ids
             )
-            
+
             logging.info(f"Successfully added QAWithCitation object to ChromaDB.")
         except Exception as e:
             logging.error(f"Failed to add QAWithCitation object to ChromaDB: {e}")
-
     
     def get_all_chunks(self) -> List[Dict[str, Any]]:
         """

@@ -111,7 +111,7 @@ class QASystem:
         return ChatPromptTemplate.from_template(template)
 
     @staticmethod
-    def _create_qa_prompt_template() -> PromptTemplate:
+    def _create_qa_prompt_template() -> ChatPromptTemplate:
         """Creates the prompt template for the QA chain."""
         template = """
             You are an expert Question-Answering and Data Extraction agent. 
@@ -121,9 +121,7 @@ class QASystem:
 
             You MUST NOT use any external knowledge or make assumptions beyond what is explicitly stated in the context. 
             Every part of your response—the question, the answer, and the citations—must be directly derivable from the given context.
-
-            **Context:**
-            {context}
+            citations are the exact quotes used to answer the question.
 
             **Output FORMAT:**
             Your output must match this structure:
@@ -141,13 +139,24 @@ class QASystem:
                 ]
             }}
             ```
+
+            **Context:**
+            {context}
+
+            **Question and Answers**
         """
-        return PromptTemplate.from_template(template)
+        return ChatPromptTemplate.from_template(template)
     
     @staticmethod
     def _format_context(context_chunks: List[Dict[str, Any]]) -> str:
         """Formats the retrieved document chunks into a single string."""
-        chunks = context_chunks.get("context_chunks", [])
+        try:
+            chunks = context_chunks["context_chunks"]
+        except Exception as e:
+            try:
+                chunks = context_chunks["context"]
+            except Exception as e:
+                chunks = []
         if len(chunks) == 0:
             return "No context provided."
         return "\n\n---\n\n".join([chunk["text"] for chunk in chunks])
@@ -201,8 +210,7 @@ class QASystem:
 
         for chunk in chunks_to_process:
             try:
-                response: QAList = qa_generation_chain.invoke({"context": chunk["text"]})
-                print(response)
+                response: QAList = qa_generation_chain.invoke({"context": [chunk]})
                 for qa in response.qas:
                     qa_pairs.append(QAWithCitationCache(
                         question=qa.question,
