@@ -131,7 +131,5 @@ class QASystem:
             HumanMessage(content=question),
             AIMessage(content=answer.answer)
         ])
-
-        print(self.chat_history)
         
         return answer

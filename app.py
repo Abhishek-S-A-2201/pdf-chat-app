@@ -23,6 +23,8 @@ if "vector_store" not in st.session_state:
     st.session_state.vector_store = VectorStore(collection_name=st.session_state.session_id)
 if "qa_system" not in st.session_state:
     st.session_state.qa_system = QASystem()
+if "pdfs" not in st.session_state:
+    st.session_state.pdfs = []
 
 # --- Sidebar for File Upload & Processing ---
 
@@ -36,6 +38,8 @@ with st.sidebar:
                 # UI Status Update: Show a spinner during processing
                 with st.spinner("Processing PDFs... This may take a moment."):
                     for pdf_file in pdf_files:
+                        if pdf_file.name in st.session_state.pdfs:
+                            continue
                         temp_file_path = Path(temp_dir) / f"{pdf_file.name}"
                         with open(temp_file_path, "wb") as f:
                             f.write(pdf_file.getbuffer())
@@ -43,6 +47,7 @@ with st.sidebar:
                 
                         if text:
                             st.session_state.vector_store.add_text(text, pdf_file.name)
+                            st.session_state.pdfs.append(pdf_file.name)
                             st.info(f"{pdf_file.name} processed! Ask your questions now.")
             except Exception as e:
                 st.error(f"An error occurred: {e}")
