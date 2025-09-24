@@ -79,7 +79,7 @@ class VectorStore:
         except Exception as e:
             logging.error(f"Failed to add document chunks to ChromaDB: {e}")
 
-    def search(self, query: str, n_results: int = 3) -> List[Dict[str, Any]]:
+    def search(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
         """
         Searches the vector database for the most relevant text chunks.
 
@@ -122,8 +122,8 @@ class VectorStore:
     def search_and_rerank(
         self,
         query: str,
-        n_initial_results: int = 10,
-        n_final_results: int = 3
+        n_initial_results: int = 20,
+        n_final_results: int = 5
     ) -> List[Dict[str, Any]]:
         """
         Performs a vector search and then re-ranks the results for higher relevance.
