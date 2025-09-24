@@ -133,3 +133,35 @@ class QASystem:
         ])
         
         return answer
+    
+    # def answer_query_stream(self, question: str, context_chunks: List[Dict[str, Any]]) -> LLMResponse:
+    #     """
+    #     Answers a query using the RAG chain and updates the chat history.
+
+    #     Args:
+    #         question: The user's query.
+    #         context_chunks: The relevant document chunks from the vector store.
+
+    #     Returns:
+    #         The model's generated answer.
+    #     """
+    #     logging.info(f"Answering question: '{question}'")
+        
+    #     # The stream method returns a generator
+    #     stream = self.rag_chain.stream({
+    #         "question": question,
+    #         "context_chunks": context_chunks,
+    #         "chat_history": self.chat_history
+    #     })
+        
+    #     # We yield each token as it's generated
+    #     full_response = ""
+    #     for chunk in stream:
+    #         full_response += chunk
+    #         yield chunk
+
+    #     # After the stream is complete, update the chat history with the full response
+    #     self.chat_history.extend([
+    #         HumanMessage(content=question),
+    #         AIMessage(content=full_response)
+    #     ])

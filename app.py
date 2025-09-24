@@ -25,6 +25,8 @@ if "qa_system" not in st.session_state:
     st.session_state.qa_system = QASystem()
 if "pdfs" not in st.session_state:
     st.session_state.pdfs = []
+if "qa_cache" not in st.session_state:
+    st.session_state.qa_cache = {}
 
 # --- Sidebar for File Upload & Processing ---
 
@@ -82,36 +84,52 @@ if prompt := st.chat_input("Ask a question about your document..."):
         st.stop()
         
     with st.chat_message("assistant"):
-        with st.spinner("Retrieving and thinking..."):
-            # Retrieve documents first to use for interactive citations
-            retrieved_docs = st.session_state.vector_store.search_and_rerank(prompt)
+        if prompt in st.session_state.qa_cache:
+            response = st.session_state.qa_cache[prompt]
+            answer = response["answer"]
+            citations = response["citations"]
+            references = response["references"]
+        else:
+            with st.spinner("Thinking..."):
+                # Retrieve documents first to use for interactive citations
+                retrieved_docs = st.session_state.vector_store.search_and_rerank(prompt)
 
-            # Handling No Chunks Found
-            if not retrieved_docs:
-                response = "Based on the provided document, I cannot answer this question."
-                citations = []
-                references = []
-            else:
-                response = st.session_state.qa_system.answer_query(prompt, retrieved_docs)
-                answer = response.answer
-                citations = response.citations
-                if answer in ["I don't know.", "I could not find the answer in the provided document or our conversation history."]:
+                # Handling No Chunks Found
+                if not retrieved_docs:
+                    response = "Based on the provided document, I cannot answer this question."
+                    answer = response
+                    citations = []
                     references = []
+                    
                 else:
-                    references = retrieved_docs
+                    response: LLMResponse = st.session_state.qa_system.answer_query(
+                        prompt, retrieved_docs
+                    )
+                    answer = response.answer
+                    citations = response.citations
+                    if answer in ["I don't know.", "I could not find the answer in the provided document or our conversation history."]:
+                        references = []
+                    else:
+                        references = retrieved_docs
+                
+                st.session_state.qa_cache[prompt] = {
+                        "answer": answer,
+                        "citations": citations,
+                        "references": references
+                    }
             
-            st.markdown(answer)
-            if citations:
-                with st.expander("Citations", expanded=True):
-                    for idx, doc in enumerate(citations):
-                        st.markdown(f"{idx + 1}. {doc}")
-            # Interactive Citations
-            if retrieved_docs:
-                with st.expander("Context", expanded=False):
-                    for idx, doc in enumerate(retrieved_docs):
-                        st.write(f"Source {idx + 1}: {doc['metadata']['source']}")
-                        st.caption(doc['text'])
-                        st.divider()
+        st.markdown(answer)
+        if citations:
+            with st.expander("Citations", expanded=True):
+                for idx, doc in enumerate(citations):
+                    st.markdown(f"{idx + 1}. {doc}")
+        # Interactive Citations
+        if references:
+            with st.expander("Context", expanded=False):
+                for idx, doc in enumerate(references):
+                    st.write(f"Source {idx + 1}: {doc['metadata']['source']}")
+                    st.caption(doc['text'])
+                    st.divider()
 
     # Add assistant response and citations to history
     st.session_state.messages.append({
