@@ -3,8 +3,7 @@ import logging
 from typing import List, Dict, Any
 
 from dotenv import load_dotenv
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.runnables import RunnablePassthrough
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_openai import ChatOpenAI
@@ -14,6 +13,20 @@ from pydantic import BaseModel
 class LLMResponse(BaseModel):
     answer: str
     citations: List[str]
+
+class QAWithCitation(BaseModel):
+    question: str
+    answer: str
+    citations: List[str]
+
+class QAList(BaseModel):
+    qas: List[QAWithCitation]
+
+class QAWithCitationCache(QAWithCitation):
+    source_chunks: List[Dict[str, Any]]
+
+class HypotheticalQACache(BaseModel):
+    qas: List[QAWithCitationCache]
 
 class QASystem:
     """
@@ -33,7 +46,6 @@ class QASystem:
             raise ValueError("OPENAI_API_KEY not found in .env file.")
 
         self.model = ChatOpenAI(model=model_name, temperature=temperature)
-        self.model = self.model.with_structured_output(LLMResponse)
         self.chat_history: List[HumanMessage | AIMessage] = []
 
         # The prompt template is the heart of the RAG system.
@@ -46,7 +58,7 @@ class QASystem:
                 context=self._format_context  # Format the retrieved chunks
             )
             | self.prompt
-            | self.model
+            | self.model.with_structured_output(LLMResponse)
         )
         logging.info("QA System initialized successfully.")
 
@@ -99,6 +111,40 @@ class QASystem:
         return ChatPromptTemplate.from_template(template)
 
     @staticmethod
+    def _create_qa_prompt_template() -> PromptTemplate:
+        """Creates the prompt template for the QA chain."""
+        template = """
+            You are an expert Question-Answering and Data Extraction agent. 
+            Your primary task is to carefully analyze a provided context and generate a list of high-quality 
+            question-and-answer pairs based *exclusively* on the information within that context.
+            You must generate atleast one question for the context.
+
+            You MUST NOT use any external knowledge or make assumptions beyond what is explicitly stated in the context. 
+            Every part of your response—the question, the answer, and the citations—must be directly derivable from the given context.
+
+            **Context:**
+            {context}
+
+            **Output FORMAT:**
+            Your output must match this structure:
+            ```json
+            {{
+                "qas": [
+                    {{
+                        "question": "string",
+                        "answer": "string",
+                        "citations": [
+                            "string"
+                        ]
+                    }},
+                    ...
+                ]
+            }}
+            ```
+        """
+        return PromptTemplate.from_template(template)
+    
+    @staticmethod
     def _format_context(context_chunks: List[Dict[str, Any]]) -> str:
         """Formats the retrieved document chunks into a single string."""
         chunks = context_chunks.get("context_chunks", [])
@@ -133,6 +179,43 @@ class QASystem:
         ])
         
         return answer
+
+    def generate_hypothetical_qa_with_citations(
+        self, chunks: List[Dict[str, Any]], num_chunks_to_process: int = 10
+    ) -> HypotheticalQACache:
+
+        logging.info(f"Generating hypothetical Q&A pairs from {num_chunks_to_process} chunks...")
+
+        qa_generation_prompt = self._create_qa_prompt_template()
+        qa_generation_chain = ( 
+            RunnablePassthrough.assign(
+                context=self._format_context  # Format the retrieved chunks
+            ) 
+            | qa_generation_prompt 
+            | self.model.with_structured_output(QAList)
+        )
+
+        qa_pairs = []
+        # Process a subset of chunks to be efficient
+        chunks_to_process = chunks[:num_chunks_to_process]
+
+        for chunk in chunks_to_process:
+            try:
+                response: QAList = qa_generation_chain.invoke({"context": chunk["text"]})
+                print(response)
+                for qa in response.qas:
+                    qa_pairs.append(QAWithCitationCache(
+                        question=qa.question,
+                        answer=qa.answer,
+                        citations=qa.citations,
+                        source_chunks=[chunk]
+                    ))
+            except Exception as e:
+                logging.warning(f"Skipping chunk due to Q&A generation error: {e}")
+                continue
+        
+        logging.info(f"Successfully generated {len(qa_pairs)} hypothetical questions.")
+        return HypotheticalQACache(qas=qa_pairs)
     
     # def answer_query_stream(self, question: str, context_chunks: List[Dict[str, Any]]) -> LLMResponse:
     #     """

@@ -1,12 +1,12 @@
 # app.py (Updated for V2)
 import streamlit as st
 from src.parser import extract_text
-import time
+import json
 import tempfile
 import uuid
 from pathlib import Path
 from src.vector_store import VectorStore
-from src.qa_chain import QASystem, LLMResponse
+from src.qa_chain import QASystem, LLMResponse, HypotheticalQACache, QAWithCitationCache
 # from pdf_processor import create_vector_db_from_pdf # We can add error handling here
 # from rag_pipeline import create_rag_chain_v2
 
@@ -20,13 +20,13 @@ if "session_id" not in st.session_state:
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "vector_store" not in st.session_state:
-    st.session_state.vector_store = VectorStore(collection_name=st.session_state.session_id)
+    st.session_state.vector_store = VectorStore(collection_name=f"vector_store_{st.session_state.session_id}")
 if "qa_system" not in st.session_state:
     st.session_state.qa_system = QASystem()
 if "pdfs" not in st.session_state:
     st.session_state.pdfs = []
 if "qa_cache" not in st.session_state:
-    st.session_state.qa_cache = {}
+    st.session_state.qa_cache = VectorStore(collection_name=f"qa_cache_{st.session_state.session_id}")
 
 # --- Sidebar for File Upload & Processing ---
 
@@ -51,9 +51,12 @@ with st.sidebar:
                             st.session_state.vector_store.add_text(text, pdf_file.name)
                             st.session_state.pdfs.append(pdf_file.name)
                             st.info(f"{pdf_file.name} processed! Ask your questions now.")
+
+                        all_chunks = st.session_state.vector_store.get_all_chunks()
+                        questions = st.session_state.qa_system.generate_hypothetical_qa_with_citations(chunks=all_chunks, num_chunks_to_process=10)
+                        # st.session_state.qa_cache.add_qas(questions)
             except Exception as e:
                 st.error(f"An error occurred: {e}")
-
 
 # --- Chat Interface ---
 # Display chat messages from history
@@ -84,11 +87,13 @@ if prompt := st.chat_input("Ask a question about your document..."):
         st.stop()
         
     with st.chat_message("assistant"):
-        if prompt in st.session_state.qa_cache:
-            response = st.session_state.qa_cache[prompt]
-            answer = response["answer"]
-            citations = response["citations"]
-            references = response["references"]
+        qa_match = st.session_state.qa_cache.search(query=prompt, n_results=1, similarity_threshold=0.5)
+
+        if qa_match:
+            response = qa_match[0]
+            answer = response["metadata"]["answer"]
+            citations = json.loads(response["metadata"]["citations"])
+            references = json.loads(response["metadata"]["source_chunks"])
         else:
             with st.spinner("Thinking..."):
                 # Retrieve documents first to use for interactive citations
@@ -112,11 +117,8 @@ if prompt := st.chat_input("Ask a question about your document..."):
                     else:
                         references = retrieved_docs
                 
-                st.session_state.qa_cache[prompt] = {
-                        "answer": answer,
-                        "citations": citations,
-                        "references": references
-                    }
+                qa_cache = HypotheticalQACache(qas=[QAWithCitationCache(question=prompt, answer=answer, citations=citations, source_chunks=references)])
+                st.session_state.qa_cache.add_qas(qa_cache)
             
         st.markdown(answer)
         if citations:

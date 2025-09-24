@@ -5,6 +5,8 @@ from typing import List, Dict, Any
 
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from sentence_transformers import CrossEncoder
+from src.qa_chain import HypotheticalQACache
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -45,6 +47,34 @@ class VectorStore:
             logging.error(f"Failed to initialize CrossEncoder model: {e}")
             self.reranker = None
         logging.info("VectorStore initialized successfully.")
+    
+    def embed_text(self, text: str) -> List[float]:
+        """
+        Generates an embedding for a given text string using the
+        collection's configured embedding model.
+
+        This is useful for tasks like semantic similarity checks without
+        needing to store the text in the database.
+
+        Args:
+            text: The string to embed.
+
+        Returns:
+            The embedding as a list of floats, or an empty list if it fails.
+        """
+        if not text or not text.strip():
+            logging.warning("embed_text called with an empty string.")
+            return []
+
+        try:
+            # The collection's embedding function expects a batch (list) of texts.
+            # We access it, pass a list containing our single text, and get a list
+            # of embeddings back. We then return the first (and only) one.
+            embedding = self.collection._embedding_function([text])
+            return embedding[0]
+        except Exception as e:
+            logging.error(f"Failed to generate embedding for text: '{text[:50]}...'. Error: {e}")
+            return []
 
     def add_text(self, text: str, pdf_file_name: str):
         """
@@ -78,8 +108,69 @@ class VectorStore:
             self.empty = False
         except Exception as e:
             logging.error(f"Failed to add document chunks to ChromaDB: {e}")
+    
+    def add_qas(self, qa_cache: HypotheticalQACache):
+        """
+        Adds a QAWithCitation object to the vector database.
 
-    def search(self, query: str, n_results: int = 5) -> List[Dict[str, Any]]:
+        Args:
+            qa: The QAWithCitation object to add.
+        """
+        try:
+
+            if len(qa_cache.qas) == 0:
+                logging.warning("No QAWithCitation object provided. Skipping storage.")
+                return
+
+            chunks = []
+            metadatas = []
+            ids = []
+            
+            for qa in qa_cache.qas:
+                chunks.append(qa.question)
+                metadatas.append({"source_chunks": json.dumps(qa.source_chunks), "citations": json.dumps(qa.citations), "answer": qa.answer})
+                ids.append(f"qa_{qa.question}")
+
+            self.collection.add(
+                documents=chunks,
+                metadatas=metadatas,
+                ids=ids
+            )
+            
+            logging.info(f"Successfully added QAWithCitation object to ChromaDB.")
+        except Exception as e:
+            logging.error(f"Failed to add QAWithCitation object to ChromaDB: {e}")
+
+    
+    def get_all_chunks(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves all document chunks from the vector database.
+
+        Returns:
+            A list of dictionaries, each containing the chunk text,
+            metadata, and similarity score (distance).
+        """
+        try:
+            results = self.collection.get()
+
+            documents = []
+            if results and results.get('documents'):
+                docs = results['documents']
+                metas = results['metadatas']
+                
+                for doc, meta in zip(docs, metas):
+
+                    documents.append({
+                        "text": doc,
+                        "metadata": meta
+                    })
+
+            return documents
+        except Exception as e:
+            logging.error(f"Failed to retrieve document chunks from ChromaDB: {e}")
+            return []
+
+    def search(self, query: str, n_results: int = 5, similarity_threshold: float | None = None) -> List[Dict[str, Any]]:
         """
         Searches the vector database for the most relevant text chunks.
 
@@ -94,9 +185,9 @@ class VectorStore:
         logging.info(f"Searching for query: '{query}'...")
         try:
             results = self.collection.query(
-                query_texts=[query],
-                n_results=n_results,
-            )
+                    query_texts=[query],
+                    n_results=n_results,
+                )
 
             # Format the results for easier use
             formatted_results = []
@@ -104,9 +195,11 @@ class VectorStore:
                 docs = results['documents'][0]
                 metas = results['metadatas'][0]
                 dists = results['distances'][0]
-                
-                for doc, meta, dist in zip(docs, metas, dists):
 
+                for doc, meta, dist in zip(docs, metas, dists):
+                    if similarity_threshold and dist > similarity_threshold:
+                        continue
+                    
                     formatted_results.append({
                         "text": doc,
                         "metadata": meta,
